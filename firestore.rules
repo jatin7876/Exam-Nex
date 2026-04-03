@@ -1,0 +1,171 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users
+// Document ID: {userId} (Firebase Auth UID)
+// Fields:
+//   - username: string (required)
+//   - email: string (required, email format)
+//   - role: string (required, 'admin' | 'student')
+//   - avatar: string (optional)
+//   - department: string (optional)
+//   - rollNumber: string (optional)
+//   - joinDate: string (required, ISO date)
+//
+// Collection: exams
+// Document ID: {examId}
+// Fields:
+//   - title: string (required)
+//   - description: string (required)
+//   - subject: string (required)
+//   - duration: number (required, positive)
+//   - totalMarks: number (required, positive)
+//   - passingMarks: number (required, positive)
+//   - difficulty: string (required, 'easy' | 'medium' | 'hard')
+//   - scheduledDate: string (required, ISO date)
+//   - activeStatus: bool (required)
+//   - createdBy: string (required, UID)
+//   - questions: list (required, list of question IDs)
+//
+// Collection: questions
+// Document ID: {questionId}
+// Fields:
+//   - questionText: string (required)
+//   - options: list (required, 4 strings)
+//   - correctAnswerIndex: number (required, 0-3)
+//   - subject: string (required)
+//   - difficulty: string (required, 'easy' | 'medium' | 'hard')
+//   - linkedExam: string (optional, examId)
+//
+// Collection: results
+// Document ID: {resultId}
+// Fields:
+//   - studentId: string (required, UID)
+//   - examId: string (required, examId)
+//   - selectedAnswers: list (required, list of numbers)
+//   - score: number (required)
+//   - percentage: number (required)
+//   - passStatus: bool (required)
+//   - timeTaken: number (required, seconds)
+//   - submittedAt: string (required, ISO date)
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         request.auth.token.email.matches("(?i)thakurjatin8882@gmail.com"));
+    }
+    
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+    
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+    
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(['id', 'username', 'email', 'role', 'avatar', 'department', 'rollNumber', 'joinDate']) &&
+             data.username is string && data.username.size() > 0 && data.username.size() < 100 &&
+             isValidEmail(data.email) &&
+             data.role in ['admin', 'student'] &&
+             isValidDateString(data.joinDate);
+    }
+
+    function isValidExam(data) {
+      return hasRequiredFields(['title', 'description', 'subject', 'duration', 'totalMarks', 'passingMarks', 'scheduledDate', 'activeStatus', 'createdBy', 'questions']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.duration is number && data.duration > 0 &&
+             data.totalMarks is number && data.totalMarks > 0 &&
+             data.passingMarks is number && data.passingMarks >= 0 &&
+             data.difficulty in ['easy', 'medium', 'hard'] &&
+             isValidDateString(data.scheduledDate) &&
+             data.activeStatus is bool &&
+             data.questions is list && data.questions.size() <= 200;
+    }
+
+    function isValidQuestion(data) {
+      return hasRequiredFields(['questionText', 'options', 'correctAnswerIndex', 'subject', 'difficulty']) &&
+             data.questionText is string && data.questionText.size() > 0 && data.questionText.size() < 2000 &&
+             data.options is list && data.options.size() == 4 &&
+             data.correctAnswerIndex is number && data.correctAnswerIndex >= 0 && data.correctAnswerIndex <= 3 &&
+             data.difficulty in ['easy', 'medium', 'hard'];
+    }
+
+    function isValidResult(data) {
+      return hasRequiredFields(['studentId', 'examId', 'selectedAnswers', 'score', 'percentage', 'passStatus', 'timeTaken', 'submittedAt']) &&
+             data.studentId == request.auth.uid &&
+             data.selectedAnswers is list &&
+             data.score is number &&
+             data.percentage is number &&
+             data.passStatus is bool &&
+             isValidDateString(data.submittedAt);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == 'student' || isAdmin());
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == resource.data.role || isAdmin());
+    }
+
+    match /exams/{examId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() && isValidExam(request.resource.data);
+      allow update: if isAdmin() && isValidExam(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /questions/{questionId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() && isValidQuestion(request.resource.data);
+      allow update: if isAdmin() && isValidQuestion(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /results/{resultId} {
+      allow read: if isAuthenticated() && (resource.data.studentId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && isValidResult(request.resource.data);
+      allow update: if false; // Results are immutable
+      allow delete: if isAdmin();
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "username": { "type": "string", "description": "Display name of the user" },
+        "email": { "type": "string", "format": "email", "description": "User's email address" },
+        "role": { "type": "string", "enum": ["admin", "student"], "description": "User's role in the system" },
+        "avatar": { "type": "string", "description": "URL to user's avatar image" },
+        "department": { "type": "string", "description": "User's academic department" },
+        "rollNumber": { "type": "string", "description": "User's roll number or ID" },
+        "joinDate": { "type": "string", "format": "date-time", "description": "When the user joined" }
+      },
+      "required": ["username", "email", "role"]
+    },
+    "Question": {
+      "title": "Question",
+      "description": "Multiple choice question",
+      "type": "object",
+      "properties": {
+        "questionText": { "type": "string", "description": "The text of the question" },
+        "options": { "type": "array", "items": { "type": "string" }, "description": "List of 4 options" },
+        "correctAnswerIndex": { "type": "integer", "description": "Index of the correct option (0-3)" },
+        "subject": { "type": "string", "description": "Subject category" },
+        "difficulty": { "type": "string", "enum": ["easy", "medium", "hard"], "description": "Difficulty level" },
+        "linkedExam": { "type": "string", "description": "ID of the exam this question belongs to" }
+      },
+      "required": ["questionText", "options", "correctAnswerIndex", "subject"]
+    },
+    "Exam": {
+      "title": "Exam",
+      "description": "Examination details",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Title of the exam" },
+        "description": { "type": "string", "description": "Detailed description" },
+        "subject": { "type": "string", "description": "Subject of the exam" },
+        "duration": { "type": "integer", "description": "Duration in minutes" },
+        "totalMarks": { "type": "integer", "description": "Maximum marks" },
+        "passingMarks": { "type": "integer", "description": "Minimum marks to pass" },
+        "difficulty": { "type": "string", "enum": ["easy", "medium", "hard"], "description": "Difficulty level" },
+        "scheduledDate": { "type": "string", "format": "date-time", "description": "When the exam is scheduled" },
+        "activeStatus": { "type": "boolean", "description": "Whether the exam is currently active" },
+        "createdBy": { "type": "string", "description": "UID of the admin who created the exam" },
+        "questions": { "type": "array", "items": { "type": "string" }, "description": "List of question IDs" }
+      },
+      "required": ["title", "description", "subject", "duration", "totalMarks", "passingMarks", "scheduledDate"]
+    },
+    "Result": {
+      "title": "Result",
+      "description": "Student's exam result",
+      "type": "object",
+      "properties": {
+        "studentId": { "type": "string", "description": "UID of the student" },
+        "examId": { "type": "string", "description": "ID of the exam" },
+        "selectedAnswers": { "type": "array", "items": { "type": "integer" }, "description": "Student's answers" },
+        "score": { "type": "number", "description": "Marks obtained" },
+        "percentage": { "type": "number", "description": "Percentage scored" },
+        "passStatus": { "type": "boolean", "description": "Whether the student passed" },
+        "timeTaken": { "type": "integer", "description": "Time taken in seconds" },
+        "submittedAt": { "type": "string", "format": "date-time", "description": "When the result was submitted" }
+      },
+      "required": ["studentId", "examId", "score", "percentage", "passStatus", "timeTaken"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": { "schema": "User", "description": "User profiles" },
+    "/questions/{questionId}": { "schema": "Question", "description": "Question bank" },
+    "/exams/{examId}": { "schema": "Exam", "description": "Exams list" },
+    "/results/{resultId}": { "schema": "Result", "description": "Exam results" }
+  }
+}
